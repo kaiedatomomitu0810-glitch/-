@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>漢字の学習</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap');
+        
+        html, body { 
+            font-family: 'Zen Maru Gothic', sans-serif; 
+            background-color: #e0f2fe; 
+            height: 100dvh; 
+            margin: 0; 
+            overflow: hidden; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+        }
+        
+        /* 画面からはみ出さず、かつ細長くなりすぎない魔法のコンテナ */
+        .app-container { 
+            width: 95vw;
+            height: 95dvh;
+            /* 縦が長い画面でも横幅が広がりすぎず、かつ細長すぎない比率を維持 */
+            max-width: min(600px, 90vw); 
+            max-height: 900px;
+            display: flex; 
+            flex-direction: column; 
+            background: white; 
+            border: clamp(4px, 1vh, 8px) solid #6366f1; 
+            border-radius: 2rem; 
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .header { background: #6366f1; padding: 1vh; text-align: center; color: white; flex-shrink: 0; }
+        .header p { font-size: clamp(1rem, 3vh, 1.8rem); font-weight: 900; }
+
+        .timer-zone { 
+            width: 100%; display: flex; align-items: center; 
+            background: #1e293b; padding: 0.8vh 12px; gap: 10px; 
+            border-bottom: 3px solid #475569; flex-shrink: 0;
+        }
+        
+        .clock-face { 
+            position: relative; width: 40px; height: 40px; background: white; 
+            border: 2px solid #64748b; border-radius: 50%; flex-shrink: 0;
+        }
+        .clock-face::before { content: '12'; position: absolute; top: 1px; left: 50%; transform: translateX(-50%); font-size: 6px; font-weight: 900; color: #334155; }
+        .clock-face::after { content: '6'; position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); font-size: 6px; font-weight: 900; color: #334155; }
+        #clock-hand { position: absolute; bottom: 50%; left: 50%; width: 2.5px; height: 15px; background: #ef4444; transform-origin: bottom center; border-radius: 10px; }
+
+        #timer-container { flex: 1; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; }
+        #timer-bar { width: 100%; height: 100%; background: #ef4444; }
+        #digital-timer { font-family: monospace; font-size: clamp(0.9rem, 2.5vh, 1.2rem); font-weight: 900; color: #22c55e; background: #000; padding: 1px 6px; border-radius: 4px; min-width: 60px; text-align: center; }
+
+        .content-area { flex: 1; position: relative; overflow: hidden; }
+        
+        #menu { 
+            position: absolute; inset: 0; background: #f0f9ff; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            padding: 2vh; gap: 2vh; z-index: 10;
+        }
+        .menu-btn { width: 90%; padding: 2.5vh; background: white; border: 4px solid; border-radius: 1.2rem; font-size: clamp(1rem, 2.5vh, 1.5rem); font-weight: 900; }
+
+        #quiz { 
+            position: absolute; inset: 0; background: #fffcf0; 
+            display: none; flex-direction: column; padding: 1.5vh 15px; z-index: 20;
+        }
+
+        #question-text { 
+            font-size: clamp(1rem, 3vh, 1.5rem); font-weight: 800; color: #374151; 
+            padding: 1.5vh; background: white; border-radius: 1rem; border: 2px solid #e0e7ff; 
+            text-align: center; margin-bottom: 1vh; flex-shrink: 0;
+        }
+
+        .fusen { 
+            background-color: #fef08a; border-left: 5px solid #facc15; 
+            padding: 1vh 12px; border-radius: 8px; margin-bottom: 1vh; cursor: pointer; flex-shrink: 0;
+        }
+        .hidden-text { filter: blur(5px); }
+        .visible-text { filter: blur(0) !important; }
+
+        .choices-grid { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; gap: 1vh; min-height: 0; }
+        .choice-btn { 
+            width: 100%; padding: 1.5vh; background: white; border: 3px solid #6366f1; 
+            border-radius: 1rem; font-size: clamp(1.1rem, 3.5vh, 1.8rem); font-weight: 900; 
+            color: #4338ca; box-shadow: 0 4px 0 #6366f1; transition: all 0.1s;
+        }
+        .choice-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #6366f1; }
+
+        .bgm-toggle { position: absolute; top: 8px; right: 8px; z-index: 100; background: white; border: 2px solid #6366f1; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<audio id="bgm" loop></audio>
+
+<div id="feedback-overlay" class="fixed inset-0 flex items-center justify-center bg-black/75 z-[200] hidden p-4">
+    <div class="bg-white p-5 rounded-[2rem] border-6 border-indigo-400 w-full max-w-[400px] text-center shadow-2xl overflow-y-auto max-h-[85vh]">
+        <div id="feedback-icon" class="text-5xl mb-2"></div>
+        <div class="text-left space-y-2 mb-4">
+            <div class="bg-indigo-600 text-white p-2 rounded-xl text-center font-black text-xl">正解：<span id="correct-ans"></span></div>
+            <p class="text-sm font-bold text-gray-700" id="exp-text"></p>
+        </div>
+        <button onclick="nextQuestion()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-black text-lg">つぎへ！ 🚀</button>
+    </div>
+</div>
+
+<div class="app-container">
+    <button onclick="toggleBGM()" class="bgm-toggle shadow-md" id="bgm-btn">🎵 BGM: ON</button>
+
+    <div class="header"><p>漢字の学習：宗ちゃん</p></div>
+
+    <div class="timer-zone">
+        <div class="clock-face"><div id="clock-hand"></div></div>
+        <div id="timer-container"><div id="timer-bar"></div></div>
+        <div id="digital-timer">20.0</div>
+    </div>
+
+    <div class="content-area">
+        <div id="menu">
+            <div class="text-5xl mb-2">🦕 🚀 🐯</div>
+            <button onclick="startQuiz(0)" class="menu-btn border-orange-400 text-orange-600">一：基本の漢字 🍎</button>
+            <button onclick="startQuiz(1)" class="menu-btn border-blue-400 text-blue-600">二：評論の漢字 📘</button>
+            <button onclick="startQuiz(2)" class="menu-btn border-teal-400 text-teal-600">三：重要な漢字 💎</button>
+        </div>
+
+        <div id="quiz">
+            <div class="flex justify-between items-center mb-1 flex-shrink-0">
+                <span id="q-count" class="text-indigo-600 font-black bg-white px-3 py-0.5 rounded-full border-2 border-indigo-200 text-xs">1 / 5</span>
+                <div class="text-4xl">🧐</div>
+            </div>
+            <div id="question-text"></div>
+            <div onclick="revealMeaning()" class="fusen">
+                <span class="text-yellow-700 font-black text-[10px] block">💡 ヒント（クリック！）</span>
+                <div id="meaning-text" class="hidden-text font-bold text-gray-800 text-sm"></div>
+            </div>
+            <div id="choices" class="choices-grid"></div>
+        </div>
+
+        <div id="result" class="hidden absolute inset-0 bg-white flex flex-col justify-center items-center text-center p-6 z-30">
+            <div class="text-7xl mb-4">🏆</div>
+            <h2 id="result-title" class="text-4xl font-black text-indigo-600 mb-6"></h2>
+            <button onclick="location.reload()" class="w-2/3 bg-indigo-600 text-white font-black py-4 rounded-2xl text-xl shadow-lg">戻る 🏠</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const musicFiles = ["126_BPM142.mp3", "128_BPM124.mp3", "233_BPM163.mp3", "275_BPM120.mp3", "416_BPM128.mp3", "447_BPM100.mp3"];
+    const QUIZ_DATA = [
+        [
+            { s: "実験は誰がやっても同じになる。この「フヘン」的な法則が科学だ。", h: "いつでも誰にでもあてはまること。", a: "普遍", c: ["普遍", "不変", "不偏", "布片"], ex: "全てのものに共通してあてはまること。" },
+            { s: "さっきと言っていることが違うよ。「ムジュン」しているね。", h: "話のつじつまが合わないこと。", a: "矛盾", c: ["矛盾", "無順", "矛順", "夢盾"], ex: "つじつまが合わないこと。" },
+            { s: "もっと「グタイ」的な例をあげて説明してください。", h: "形があってわかりやすいこと。", a: "具体", c: ["具体", "具対", "供体", "具帯"], ex: "はっきりとした形があること。" },
+            { s: "ぼくの「シュカン」だけど、これが一番おいしい！", h: "自分だけの感じ方。", a: "主観", c: ["主観", "主感", "種観", "守観"], ex: "自分ひとりの見方。" },
+            { s: "みんなの意見を聞いて「キャッカン」的にみよう。", h: "だれが見ても正しい立場でみること。", a: "客観", c: ["客観", "各観", "客家", "客関"], ex: "自分をはなれて冷静に見ること。" }
+        ],
+        [
+            { s: "「平和」という「ガイネン」を考える。", h: "頭の中にある共通の考え。", a: "概念", c: ["概念", "外念", "慨念", "該念"], ex: "物事の共通したイメージ。" },
+            { s: "抜き出して「チュウショウ」的に考える。", h: "大事な点だけを見ること。", a: "抽象", c: ["抽象", "抽出", "宙象", "注象"], ex: "共通の性質をぬき出すこと。" },
+            { s: "「ギャクセツ」だけど、急がば回れ。", h: "反対に見えて実は正しいこと。", a: "逆説", c: ["逆説", "逆接", "虐説", "逆摂"], ex: "一見ウソのようで真実のこと。" },
+            { s: "ゴミを資源に「カンゲン」する。", h: "元の状態にもどして返すこと。", a: "還元", c: ["還元", "甘言", "完限", "感言"], ex: "もとの形や場所にもどすこと。" },
+            { s: "理想と現実の間に大きな「カイリ」がある。", h: "離れてしまうこと。", a: "乖離", c: ["乖離", "乖理", "開離", "改離"], ex: "そむき、はなれること。" }
+        ],
+        [
+            { s: "自分の意見を「キョウメイ」してくれる。", h: "他人の考えに心から賛成すること。", a: "共鳴", c: ["共鳴", "響鳴", "今日名", "共命"], ex: "同じ気持ちで心が動くこと。" },
+            { s: "文化の「タヨウ」性を尊重する。", h: "いろいろな種類があること。", a: "多様", c: ["多様", "多用", "多葉", "大様"], ex: "いろいろな種類があること。" },
+            { s: "新しい技術が社会を「ヘンボウ」させる。", h: "姿やすっかり変わること。", a: "変貌", c: ["変貌", "変防", "編某", "変望"], ex: "姿や様子がガラリと変わること。" },
+            { s: "古い考え方を「ダハ」する。", h: "悪い状態を打ち破ること。", a: "打破", c: ["打破", "打波", "蛇波", "駄派"], ex: "打ち破ること。" },
+            { s: "言葉を「コウミョウ」に操る。", h: "やり方が非常にうまいこと。", a: "巧妙", c: ["巧妙", "公明", "好妙", "功名"], ex: "たくみで上手なこと。" }
+        ]
+    ];
+
+    let currentSet, currentQ, score, timer, timeLeft;
+    const bgm = document.getElementById('bgm');
+    const bgmBtn = document.getElementById('bgm-btn');
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function toggleBGM() {
+        if (bgm.paused) { bgm.play(); bgmBtn.innerText = "🎵 BGM: ON"; }
+        else { bgm.pause(); bgmBtn.innerText = "🔇 BGM: OFF"; }
+    }
+
+    function startQuiz(idx) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const randomFile = musicFiles[Math.floor(Math.random() * musicFiles.length)];
+        bgm.src = randomFile;
+        bgm.play().catch(() => {});
+        document.getElementById('menu').style.display = 'none';
+        document.getElementById('quiz').style.display = 'flex';
+        currentSet = idx; currentQ = 0; score = 0;
+        showQuestion();
+    }
+
+    function showQuestion() {
+        const q = QUIZ_DATA[currentSet][currentQ];
+        document.getElementById('q-count').innerText = `${currentQ + 1} / 5`;
+        const mText = document.getElementById('meaning-text');
+        mText.innerText = q.h; mText.classList.remove('visible-text');
+        document.getElementById('question-text').innerText = q.s.replace(q.a, '（　　）');
+        const choices = document.getElementById('choices');
+        choices.innerHTML = "";
+        [...q.c].sort(() => Math.random() - 0.5).forEach(c => {
+            const b = document.createElement('button');
+            b.className = "choice-btn";
+            b.innerText = c; b.onclick = () => checkAnswer(c); choices.appendChild(b);
+        });
+        startTimer();
+    }
+
+    function revealMeaning() { document.getElementById('meaning-text').classList.add('visible-text'); }
+
+    function startTimer() {
+        timeLeft = 20;
+        const bar = document.getElementById('timer-bar');
+        const hand = document.getElementById('clock-hand');
+        const digital = document.getElementById('digital-timer');
+        clearInterval(timer);
+        timer = setInterval(() => {
+            timeLeft -= 0.1; if (timeLeft < 0) timeLeft = 0;
+            bar.style.width = (timeLeft / 20) * 100 + "%";
+            digital.innerText = timeLeft.toFixed(1);
+            hand.style.transform = `rotate(${((20 - timeLeft) / 20) * 360}deg)`;
+            if (timeLeft <= 0) { clearInterval(timer); checkAnswer("TIME_UP"); }
+        }, 100);
+    }
+
+    function checkAnswer(choice) {
+        clearInterval(timer);
+        const q = QUIZ_DATA[currentSet][currentQ];
+        const overlay = document.getElementById('feedback-overlay');
+        const icon = document.getElementById('feedback-icon');
+        document.getElementById('correct-ans').innerText = q.a;
+        document.getElementById('exp-text').innerText = q.ex;
+        if (choice === q.a) { score++; playS('ok'); icon.innerText = "⭕️"; icon.style.color = "#ff4d4d"; }
+        else { playS('ng'); icon.innerText = choice === "TIME_UP" ? "⏰" : "❌"; icon.style.color = "#4d94ff"; }
+        overlay.classList.remove('hidden');
+    }
+
+    function nextQuestion() {
+        document.getElementById('feedback-overlay').classList.add('hidden');
+        currentQ++; if (currentQ < 5) showQuestion(); else showResult();
+    }
+
+    function playS(type) {
+        const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        if(type === 'ok') { o.frequency.setValueAtTime(880, audioCtx.currentTime); o.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1); }
+        else { o.type = 'triangle'; o.frequency.setValueAtTime(200, audioCtx.currentTime); }
+        g.gain.setValueAtTime(0.1, audioCtx.currentTime); g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+        o.start(); o.stop(audioCtx.currentTime + 0.2);
+    }
+
+    function showResult() {
+        document.getElementById('quiz').style.display = 'none';
+        const res = document.getElementById('result');
+        res.classList.remove('hidden');
+        document.getElementById('result-title').innerText = `${score}点！`;
+    }
+</script>
+</body>
+</html>
